@@ -1,0 +1,69 @@
+import pandas as pd
+import os
+
+# Path to the folder containing Excel files
+folder_path = r'C:\Users\nazim.rusli\Desktop\CP list EXCEL'  # Use raw string (r'')
+
+# List of sheet names you want to extract from each Excel file
+sheet_names = ["AIN", "BIN", "BLNALM", "BOUT", "AOUT"]  # Modify with your sheet names
+
+# Get all Excel files in the folder (filtering for .xlsx files, excluding temp files)
+excel_files = [
+    os.path.join(folder_path, f) 
+    for f in os.listdir(folder_path) 
+    if f.endswith('.xlsx') and not f.startswith('~$')
+]
+
+# Dictionary to store DataFrames for each sheet
+sheet_data = {sheet_name: [] for sheet_name in sheet_names}
+
+# Loop through each Excel file
+for file in excel_files:
+    try:
+        print(f"Processing file: {file}")
+        
+        # Extract the base name of the file without extension
+        file_name = os.path.splitext(os.path.basename(file))[0]  # Discard .xlsx
+        
+        # Loop through each sheet in the list of sheet names
+        for sheet_name in sheet_names:
+            try:
+                # Read the specific sheet from the current file
+                df = pd.read_excel(file, sheet_name=sheet_name, engine='openpyxl')  # Specify engine explicitly
+                
+                # Add columns for file name and sheet name
+                df['Excel File'] = file_name  # Add file name without extension
+                df['Sheet Name'] = sheet_name  # Add sheet name
+                
+                # Move "Excel File" and "Sheet Name" columns to the beginning
+                df.insert(0, 'Sheet Name', df.pop('Sheet Name'))
+                df.insert(0, 'Excel File', df.pop('Excel File'))
+
+                # Debug: Print a summary of the processed data
+                print(f"Processed sheet '{sheet_name}' from file '{file_name}' with {df.shape[0]} rows.")
+                
+                # Append the DataFrame to the dictionary for the corresponding sheet
+                sheet_data[sheet_name].append(df)
+            except Exception as e:
+                # Handle case where a specific sheet doesn't exist in a file
+                print(f"Sheet '{sheet_name}' not found in '{file}': {e}")
+        
+    except Exception as e:
+        print(f"Error reading file '{file}': {e}")
+
+# Check if sheet_data has any data before writing to Excel
+if any(sheet_data.values()):
+    # Create an ExcelWriter object to write multiple sheets
+    output_file = os.path.join(folder_path, "combined_output_with_file_names.xlsx")
+    
+    with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+        # Write each sheet's data to a different sheet in the Excel file
+        for sheet_name, dataframes in sheet_data.items():
+            if dataframes:  # Ensure there is data for this sheet
+                combined_df = pd.concat(dataframes, ignore_index=True)
+                combined_df.to_excel(writer, sheet_name=sheet_name, index=False)
+                print(f"Written data to sheet '{sheet_name}' in the final Excel file.")
+    
+    print(f"Combined data saved to {output_file}")
+else:
+    print("No data was found in the specified sheets and files.")
